@@ -107,7 +107,7 @@ describe("Batch", () => {
       assert.isUndefined(jobOutput.body.startedAt, "Job should not have startedAt");
       assert.equal("NotStarted", jobOutput.body.status, "Job status should be NotStarted");
       assert.isUndefined(jobOutput.body.error, "Job should not have error");
-      //assert.isUndefined(jobOutput.body.customizations?.redactionFormat, "Job should not have redactionFormat");
+      assert.isUndefined(jobOutput.body.customizations?.redactionFormat, "Job should not have redactionFormat");
       assert.isUndefined(jobOutput.body.summary, "Job should not have summary");
       assert.equal(
         inputPrefix,
@@ -148,7 +148,7 @@ describe("Batch", () => {
           extensions: ["*"],
         },
         targetLocation: { location: storageAccountLocation, prefix: OUTPUT_FOLDER },
-        //customizations: { redactionFormat: "json" },
+        customizations: { redactionFormat: "json" },
       };
 
       const initialResponse = await client.path("/jobs/{name}", jobName).put({ body: job });
@@ -171,7 +171,7 @@ describe("Batch", () => {
       assert.isNotNull(foundJob!.startedAt, "Job should have startedAt");
       assert.equal("NotStarted", foundJob!.status, "Job status should be NotStarted");
       assert.isUndefined(foundJob!.error, "Job should not have error");
-      //assert.equal("json", foundJob!.customizations?.redactionFormat, "Job should have redactionFormat set to 'json'");
+      assert.equal("json", foundJob!.customizations?.redactionFormat, "Job should have redactionFormat set to 'json'");
       assert.isUndefined(foundJob!.summary, "Job should not have summary");
       assert.equal(
         inputPrefix,
