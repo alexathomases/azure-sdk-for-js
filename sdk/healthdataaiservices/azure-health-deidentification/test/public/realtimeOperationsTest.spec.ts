@@ -75,8 +75,6 @@ describe("Realtime", () => {
     assert.isNotNull(output.taggerResult, "On Tag Operation, expect TaggerResult to be not null.");
     assert.isObject(output.taggerResult, "On Tag Operation, expect TaggerResult to be not null.");
     assert.isUndefined(output.outputText, "On Tag Operation, expect OutputText to be null.");
-    // assert.isTrue(output.taggerResult!.etag === undefined, "Expected Etag to be null.");
-    // assert.isTrue(output.taggerResult!.path === undefined, "Expected Path to be null.");
 
     assert.isTrue(
       output.taggerResult!.entities.length > 0,

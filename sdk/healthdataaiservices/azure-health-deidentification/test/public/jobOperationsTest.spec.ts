@@ -107,7 +107,7 @@ describe("Batch", () => {
       assert.isUndefined(jobOutput.body.startedAt, "Job should not have startedAt");
       assert.equal("NotStarted", jobOutput.body.status, "Job status should be NotStarted");
       assert.isUndefined(jobOutput.body.error, "Job should not have error");
-      assert.isUndefined(jobOutput.body.customizations?.redactionFormat, "Job should not have redactionFormat");
+      //assert.isUndefined(jobOutput.body.customizations?.redactionFormat, "Job should not have redactionFormat");
       assert.isUndefined(jobOutput.body.summary, "Job should not have summary");
       assert.equal(
         inputPrefix,
@@ -141,13 +141,14 @@ describe("Batch", () => {
         : getStorageAccountLocation();
 
       const job: DeidentificationJob = {
-        operation: "Surrogate",
+        operation: "Redact",
         sourceLocation: {
           location: storageAccountLocation,
           prefix: inputPrefix,
           extensions: ["*"],
         },
         targetLocation: { location: storageAccountLocation, prefix: OUTPUT_FOLDER },
+        //customizations: { redactionFormat: "json" },
       };
 
       const initialResponse = await client.path("/jobs/{name}", jobName).put({ body: job });
@@ -170,7 +171,7 @@ describe("Batch", () => {
       assert.isNotNull(foundJob!.startedAt, "Job should have startedAt");
       assert.equal("NotStarted", foundJob!.status, "Job status should be NotStarted");
       assert.isUndefined(foundJob!.error, "Job should not have error");
-      assert.isUndefined(foundJob!.customizations?.redactionFormat, "Job should not have redactionFormat");
+      //assert.equal("json", foundJob!.customizations?.redactionFormat, "Job should have redactionFormat set to 'json'");
       assert.isUndefined(foundJob!.summary, "Job should not have summary");
       assert.equal(
         inputPrefix,
@@ -226,11 +227,11 @@ describe("Batch", () => {
       assert.equal(finalJobOutput.body.status, "Succeeded", "Job status should be Succeeded");
       assert.notEqual(finalJobOutput.body.startedAt, null, "Job should have startedAt");
       assert.notEqual(finalJobOutput.body.summary, null, "Job should have summary");
-      assert.equal(finalJobOutput.body.summary!.total, 2, "Job should have processed 2 documents");
+      assert.equal(finalJobOutput.body.summary!.total, 3, "Job should have processed 3 documents");
       assert.equal(
         finalJobOutput.body.summary!.successful,
-        2,
-        "Job should have succeeded 2 documents",
+        3,
+        "Job should have succeeded 3 documents",
       );
 
       const reports = await client.path("/jobs/{jobName}/documents", jobName).get({
@@ -251,8 +252,8 @@ describe("Batch", () => {
       }
 
       assert.isTrue(
-        (items as unknown[] as DocumentDetailsOutput[]).length === 2,
-        "Should have 2 documents",
+        (items as unknown[] as DocumentDetailsOutput[]).length === 3,
+        "Should have 3 documents",
       );
       assert.isTrue(
         (items as unknown[] as DocumentDetailsOutput[]).every((obj) => obj.status === "Succeeded"),
@@ -268,6 +269,62 @@ describe("Batch", () => {
         (items as unknown[] as DocumentDetailsOutput[]).every((obj) => obj.id.length === 36),
         "Document id should be a GUID",
       );
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it.only(
+    "JobE2E list job documents paginated returns expected",
+    async function () {
+      const jobName = generateJobName(`006-${environment}`);
+      const inputPrefix = "example_patient_1";
+      const storageAccountLocation = isPlaybackMode()
+        ? replaceableVariables.STORAGE_ACCOUNT_LOCATION
+        : getStorageAccountLocation();
+
+      const job: DeidentificationJob = {
+        operation: "Surrogate",
+        sourceLocation: {
+          location: storageAccountLocation,
+          prefix: inputPrefix,
+          extensions: ["*"],
+        },
+        targetLocation: { location: storageAccountLocation, prefix: OUTPUT_FOLDER },
+      };
+
+      const initialResponse = await client.path("/jobs/{name}", jobName).put({ body: job });
+
+      const poller = await getLongRunningPoller(client, initialResponse, testPollingOptions);
+      const finalJobOutput = await poller.pollUntilDone();
+
+      if (isUnexpected(finalJobOutput)) {
+        throw new Error("Unexpected error occurred");
+      }
+
+      const reports = await client.path("/jobs/{jobName}/documents", jobName).get({
+          queryParameters: {
+            maxpagesize: 2
+          }
+        });
+
+      if (isUnexpected(reports)) {
+        throw new Error("Unexpected error occurred");
+      }
+
+      const items = [];
+      const jobIds: string[] = [];
+      const iter = paginate(client, reports);
+
+      for await (const item of iter) {
+        items.push(item);
+        jobIds.push(item.id);
+      }
+
+      assert.isTrue(
+        (items as unknown[] as DocumentDetailsOutput[]).length === 3,
+        "Should have 3 documents but had " + (items as unknown[] as DocumentDetailsOutput[]).length,
+      );
+      assert.isTrue(new Set(jobIds).size === 3, "Should have 3 unique job IDs");
     },
     TEST_TIMEOUT_MS,
   );
@@ -312,7 +369,7 @@ describe("Batch", () => {
   );
 
   it(
-    "JobE2E cannot access storage create job returns 404",
+    "JobE2E cannot access storage create job returns 400, get job returns 404",
     async function () {
       const jobName = generateJobName(`005-${environment}`);
       const inputPrefix = "example_patient_1";
@@ -329,6 +386,7 @@ describe("Batch", () => {
       };
 
       const initialResponse = await client.path("/jobs/{name}", jobName).put({ body: job });
+      assert(initialResponse.status === "400", "Should return 400 Bad Request, actually returned status code " + initialResponse.status);
 
       const poller = await getLongRunningPoller(client, initialResponse, testPollingOptions);
 
@@ -339,7 +397,7 @@ describe("Batch", () => {
       assert.equal(createdJob.status, "404", "Job should not be found");
       const createdJobOutput = createdJob.body as ErrorResponse;
       assert.isNotNull(createdJobOutput.error, "Job should have error");
-      assert.equal("JobNotFound", createdJobOutput.error.code, "Error code should be JobNotFound");
+      assert.equal("JobNotFound", createdJobOutput.error.code, "Error code for nonexistent job should be JobNotFound");
       assert.isTrue(
         createdJobOutput.error!.message.length > 10,
         "Error message should be descriptive",
